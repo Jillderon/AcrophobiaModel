@@ -15,7 +15,6 @@ library(tidyverse)
 library(smacpod)
 
 # Load in supporting functions -----
-setwd("~/Dropbox/Fear Avoidance/DRAFT/Simulations Acrophobia/Simulation Code")
 source("SupportingFunctionsRL.R")
 
 # Run simPhobia -----
@@ -150,7 +149,6 @@ simPhobia <- function(control,
                     labs(title = "Somatic Response and Perceived Control", y = "")+
                     theme_minimal() 
     
-    setwd("~/Desktop/Sim/Test")
     pdf(simulation_name, width = 10, height = 5)
     grid.arrange(plot1[[4]], plot2, ncol = 2)
     dev.off()
