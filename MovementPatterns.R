@@ -4,25 +4,20 @@
 ################################################################################ 
 
 # Load functions: 
-#setwd("~/Dropbox/Fear Avoidance/DRAFT/Simulations Acrophobia/Simulation Code")
 source("AcrophobiaModel.R")
-source("SupportingFunctionsRL.R")
-
-# Set working directory: 
-#setwd("~/Dropbox/Fear Avoidance/DRAFT/Figures")
 
 # =========================
 # Fleeing and Freezing
 # =========================
 
 fleeing <- simPhobia(control = 0.4,
-                    punishment_h = 0.5,
-                    gamma = .95,
-                    size = 11,
-                    meters = 20,
-                    reward = 1,
-                    grid_space = "abyss2",
-                    plot = FALSE)
+                     punishment_h = 0.5,
+                     gamma = .95,
+                     size = 11,
+                     meters = 20,
+                     reward = 1,
+                     grid_space = "abyss2",
+                     plot = FALSE)
 
 # Set up standard grid (also used for other figures)
 grid <- matrix(0, nrow = 11, ncol = 11)
@@ -68,13 +63,13 @@ dev.off()
 # =========================
 
 retract <- simPhobia(control = 0.8,
-                    punishment_h = 0.2,
-                    gamma = .95,
-                    size = 11,
-                    meters = 20,
-                    reward = 1,
-                    grid_space = "abyss2",
-                    plot = FALSE)
+                     punishment_h = 0.2,
+                     gamma = .95,
+                     size = 11,
+                     meters = 20,
+                     reward = 1,
+                     grid_space = "abyss2",
+                     plot = FALSE)
 
 # Set up heatmap: 
 grid_retract <- grid; grid_retract[retract$behavior] <- NA

@@ -11,7 +11,6 @@ library("patchwork")
 
 # Load in data: 
 data <- read.table("output.csv", header = FALSE, stringsAsFactors = FALSE)
-data <- data[, -1, drop = FALSE]
 
 colnames(data) <- c("Control", "Punishment_h", "Meter", "Gridspace", "Goal",
                     "Steps", "MeanFear", "MeanBodily", "MeanThreat", "MeanDistAbyss")
@@ -30,6 +29,9 @@ data$MeanDistAbyss <- as.numeric(data$MeanDistAbyss)
 
 for (punishment_h in c(0.2, 0.5, 0.7)) {
   dataTemp <- data %>% filter(Punishment_h == punishment_h)
+  if (nrow(dataTemp) == 0) {
+    next
+  }
   
   # Ensure that 'control' and 'elevation' are treated as factors (ordinal variables)
   dataTemp$Control <- factor(dataTemp$Control, ordered = TRUE)
@@ -70,8 +72,8 @@ for (punishment_h in c(0.2, 0.5, 0.7)) {
   # Save as one figure
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   
-  #pdf(paste0("Phenomena_h", punishment_h ,".pdf"), width = 8, height = 5)
-  Fear + Distance + 
-    plot_layout(guides = "collect") & theme(legend.position = "bottom") # or "top"
-  #dev.off()
+  pdf(paste0("Phenomena_h", punishment_h ,".pdf"), width = 8, height = 5)
+  Plot <- Fear + Distance + plot_layout(guides = "collect")
+  print(Plot)
+  dev.off()
 }

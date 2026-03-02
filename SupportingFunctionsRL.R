@@ -73,76 +73,128 @@ Bellman <- function(arr, control) {
   return(control * max(arr) + (1 - control) * min(arr))
 }
 
-solve_Qvalues <- function(MDP_info, control, max_iter, gamma, tol, size) {
+# Build row indices for each source state once, then reuse in value/policy loops.
+build_state_index <- function(source_states, n_states) {
+  split_idx <- split(seq_along(source_states), source_states)
+  state_index <- vector("list", n_states)
+  for (name in names(split_idx)) {
+    state_index[[as.integer(name)]] <- split_idx[[name]]
+  }
+  state_index
+}
+
+solve_Qvalues <- function(MDP_info, control, max_iter, gamma, tol, size, state_index = NULL, init_Q = NULL) {
   
-  # Initialize Q-values:
-  Q <- matrix(rep(0, nrow(MDP_info)), ncol = 1) # Q is the expected reward for every possible transition
-  copy <- MDP_info 
+  n_transitions <- nrow(MDP_info)
+
+  # Warm-start from previous Q-values when available; otherwise zeros.
+  if (!is.null(init_Q) && length(init_Q) == n_transitions) {
+    Q <- as.numeric(init_Q)
+  } else {
+    Q <- numeric(n_transitions)
+  }
+
+  rewards <- MDP_info$R
+  successor_states <- MDP_info$S_prime
+  n_states <- size * size
+  if (is.null(state_index)) {
+    state_index <- build_state_index(MDP_info$S, n_states)
+  }
   
+  iter_used <- 0
+
   # Solve for Q-values:
-  for (i in 1:max_iter) {
-    
-    # Make copy:
-    q <- Q
-    copy$Q <- q
+  for (iter in 1:max_iter) {
+    q_prev <- Q
     
     # Precompute successor value: 
-    V_prime <- numeric(size*size)
-    for (s in 1:(size*size)) {
-      arr <- copy %>% filter(S == s)
-      V_prime[s] <- Bellman(arr$Q, control) # V_prime is the value function for every possible state given the policy 
+    V_prime <- numeric(n_states)
+    for (s in seq_len(n_states)) {
+      idx <- state_index[[s]]
+      if (length(idx) == 0) {
+        next
+      }
+      arr <- q_prev[idx]
+      V_prime[s] <- Bellman(arr, control) # V_prime is the value function for every possible state given the policy
     }
     
     # Compute Q-values:
-    for (i in 1:nrow(MDP_info)) {
-      Q[i] <- MDP_info$R[i] + gamma * V_prime[MDP_info$S_prime[i]]
-    }
-    
-    # Compute delta:
-    delta <- abs(Q - q)
+    Q <- rewards + gamma * V_prime[successor_states]
+    iter_used <- iter
     
     # Check for termination (i.e., all values of delta below threshold):
-    if (all(delta < tol)) { break } 
+    if (max(abs(Q - q_prev)) < tol) {
+      break
+    }
   }
   
-  return(Q)
+  return(list(Q = Q, iterations = iter_used))
 }
 
-solve_MDP <- function(MDP_info, control, terminal_states, start_state, max_iter, gamma, tol, size) {
+solve_MDP <- function(MDP_info, control, terminal_states, start_state, max_iter, gamma, tol, size, init_Q = NULL, state_index = NULL) {
   
-  # Solve for values:
-  copy <- MDP_info
-  copy$Q <- solve_Qvalues(MDP_info, control, max_iter, gamma, tol, size)
+  n_states <- size * size
+  if (is.null(state_index)) {
+    state_index <- build_state_index(MDP_info$S, n_states)
+  }
+  q_out <- solve_Qvalues(MDP_info, control, max_iter, gamma, tol, size, state_index, init_Q)
+  q_values <- q_out$Q
   
   # Identify max by state:
-  V <- numeric(size*size)
-  for (s in 1:(size*size)) {
-    arr <- copy %>% filter(S == s)
-    V[s] <- Bellman(arr$Q, control) # Before this was max(arr$Q), but this leaves a "cross" around the reward 
+  V <- numeric(n_states)
+  for (s in seq_len(n_states)) {
+    idx <- state_index[[s]]
+    if (length(idx) == 0) {
+      next
+    }
+    arr <- q_values[idx]
+    V[s] <- Bellman(arr, control) # Before this was max(arr$Q), but this leaves a "cross" around the reward
   }
   
   # Compute policy 
-  policy <- c()
-  policy[1] <- state <- start_state
+  policy <- c(start_state)
+  state <- start_state
   i = 1
-  while (!(state %in% terminal_states)) {
+  is_terminal <- logical(n_states)
+  is_terminal[terminal_states] <- TRUE
+  while (!is_terminal[state]) {
     
     # Compute optimal q(s, a):
-    temp <- copy %>% filter(S == state)
-    state <- temp$S_prime[which.max(temp$Q)]
+    idx <- state_index[[state]]
+    state <- MDP_info$S_prime[idx][which.max(q_values[idx])]
     
     # Append it to policy
     policy <- c(policy, state)
     
     # Make sure it doesn't get stuck: 
     i = i + 1
-    if (i > 100) { break }
+    if (i > 100 || is_terminal[state]) {
+      break
+    }
   }
   
   return(list(policy   = policy, 
               V_values = V, 
-              Q_values = copy$Q))
+              Q_values = q_values,
+              q_iterations = q_out$iterations))
   
+}
+
+# Mean Manhattan distance from the visited path to nearest punishment state.
+mean_distance_to_abyss <- function(path_states, punishment_locs, size) {
+  if (length(punishment_locs) == 0 || length(path_states) == 0) {
+    return(NA_real_)
+  }
+  x_path <- ((path_states - 1) %% size) + 1
+  y_path <- ((path_states - 1) %/% size) + 1
+  x_pun <- ((punishment_locs - 1) %% size) + 1
+  y_pun <- ((punishment_locs - 1) %/% size) + 1
+
+  min_dist <- vapply(seq_along(path_states), function(i) {
+    min(abs(x_path[i] - x_pun) + abs(y_path[i] - y_pun))
+  }, numeric(1))
+
+  mean(min_dist)
 }
 
 determine_grid <- function(size, grid_space, reward, punishment, plot) {
@@ -275,4 +327,3 @@ solve_one_step <- function(MDP, Qvalues, weight, terminal_states, current_state)
 
   
 }
-
