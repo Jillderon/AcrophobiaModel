@@ -11,7 +11,6 @@ library("patchwork")
 
 # Load in data: 
 data <- read.table("output.csv", header = FALSE, stringsAsFactors = FALSE)
-
 colnames(data) <- c("Control", "Punishment_h", "Meter", "Gridspace", "Goal",
                     "Steps", "MeanFear", "MeanBodily", "MeanThreat", "MeanDistAbyss")
 
