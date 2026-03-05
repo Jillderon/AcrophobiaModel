@@ -24,7 +24,7 @@ simPhobia <- function(control,
                       reward = 1,
                       meters = 10,
                       size = c(11, 22),
-                      grid_space = c("cove", "cove2",
+                      grid_space = c("cove", "cove2", "cove3",
                                      "bridge", "bridge2",
                                      "holes", "cliff", "ground"),
                       rate_somatic = 0.5,
@@ -201,13 +201,13 @@ simPhobia <- function(control,
 ########
 
 simPhobia(control = .2, 
-          size = 11, 
-          grid_space = "bridge2", 
+          size = 44, 
+          grid_space = "cove3", 
           pdf_trajectory = FALSE,
           pdf_grid = TRUE)
 
 
-c("cove", "cove2",
+c("cove", "cove2", "cove3",
   "bridge", "bridge2",
   "holes", "cliff", "ground")
 

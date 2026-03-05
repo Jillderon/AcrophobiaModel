@@ -206,7 +206,7 @@ determine_grid <- function(size,
                            plot) {
   size <- as.integer(size[1])
   grid_space <- as.character(grid_space[1])
-  valid_spaces <- c("cove", "cove2", "bridge", "bridge2", "holes", "cliff", "ground")
+  valid_spaces <- c("cove", "cove2", "cove3", "bridge", "bridge2", "holes", "cliff", "ground")
 
   if (is.na(size) || size <= 10 || size >= 50) {
     stop("`size` must be an integer between 11 and 49.")
@@ -229,6 +229,7 @@ determine_grid <- function(size,
   edge_top <- idx(1, seq_len(size))
   edge_bottom <- idx(size, seq_len(size))
   edge_left <- idx(seq_len(size), 1)
+  edge_right <- idx(seq_len(size), size)
 
   # Shared "abyss-like" interior threat block.
   plus_rows <- seq(max(2, floor(size * 0.25)), min(size - 1, ceiling(size * 0.7)))
@@ -249,10 +250,33 @@ determine_grid <- function(size,
                            mapply(idx, path_rows, pmin(size - 1, zigzag_cols + 1))))
 
   if (grid_space == "cove") {
-    p_locs <- c(edge_top, edge_bottom, edge_left, plus)
-  } else if (grid_space == "cove2") {
-    p_locs <- c(edge_bottom, edge_left, plus)
-    r_locs <- idx(3, min(size - 2, center_col + max(1, floor(size * 0.15))))
+    # Keep original start/reward positions, but move the cove threat block left
+    # so the straight center path passes punishment on its right side.
+    cove_cols <- seq(min(size - 1, center_col + 1), size - 1)
+    cove_rows <- 3:(size - 2)
+    cove_plus <- idx_rect(cove_rows, cove_cols)
+    p_locs <- c(edge_top, edge_bottom, edge_left, cove_plus)
+  } else if (grid_space == "cove2" || grid_space == "cove3") {
+    # Scaled cove templates:
+    # cove3: top+bottom+left+right borders + mid-right inward block
+    # cove2: same as cove3, but without left and bottom border punishments
+    start <- idx(size - 1, center_col)
+    r_locs <- idx(3, center_col)
+
+    if (size == 11) {
+      # Match the reference figure exactly for the 11x11 case.
+      block_rows <- 5:7
+      block_cols <- 7:10
+    } else {
+      block_rows <- seq(max(4, floor(size * 0.45)), min(size - 3, ceiling(size * 0.65)))
+      block_cols <- seq(min(size - 1, center_col + 1), size - 1)
+    }
+    mid_right_block <- idx_rect(block_rows, block_cols)
+    if (grid_space == "cove3") {
+      p_locs <- c(edge_top, edge_bottom, edge_left, edge_right, mid_right_block)
+    } else {
+      p_locs <- c(edge_top, edge_right, mid_right_block)
+    }
   } else if (grid_space == "ground") {
     p_locs <- integer(0)
   } else if (grid_space == "bridge") {
