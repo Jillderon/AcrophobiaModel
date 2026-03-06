@@ -158,7 +158,7 @@ simPhobia <- function(control,
       height = 3
     )
 
-    n_points <- length(somatic) - 1
+    n_points <- max(1, length(which(behavior > 0)) - 1)
     affect <- data.frame(
       somatic = somatic[seq_len(n_points)],
       fear = fear[seq_len(n_points)],
@@ -166,19 +166,26 @@ simPhobia <- function(control,
       x = seq_len(n_points)
     )
 
-    plot2 <- ggplot(affect, aes(x = x, y = somatic)) +
-      geom_point(size = 4) +
-      geom_point(aes(x = x, y = control_steps), col = "blue", size = 3, shape = 17) +
-      geom_point(aes(x = x, y = fear), col = "orange", size = 3, shape = 15) +
+    plot2 <- ggplot(affect, aes(x = x)) +
+      geom_point(aes(y = control_steps), col = "blue", size = 3, shape = 17) +
+      geom_point(aes(y = fear), col = "orange", size = 3, shape = 15) +
       ylim(0, 1) +
       scale_x_discrete(name = "Sequence", limits = factor(1:c(length(somatic)-1))) +
-      labs(title = "Somatic Response and Perceived Control", y = "") +
+      labs(title = "Fear and Perceived Control", y = "") +
       theme_minimal()
 
     pdf(simulation_name, width = 10, height = 5)
     grid.arrange(plot1[[4]], plot2, ncol = 2)
     dev.off()
   }
+
+  # Trim padded state traces to the actually visited trajectory length.
+  path_len <- max(which(behavior > 0))
+  behavior <- behavior[seq_len(path_len)]
+  fear <- fear[seq_len(path_len)]
+  somatic <- somatic[seq_len(path_len)]
+  threat <- threat[seq_len(path_len)]
+  control_trace <- control_trace[seq_len(path_len)]
 
   list(
     simulation_name = simulation_name,
@@ -201,17 +208,10 @@ simPhobia <- function(control,
 ########
 
 simPhobia(control = .2, 
-          size = 44, 
-          grid_space = "cove3", 
-          pdf_trajectory = FALSE,
+          size = 11, 
+          grid_space = "cove", 
+          pdf_trajectory = TRUE,
           pdf_grid = TRUE)
-
-
-c("cove", "cove2", "cove3",
-  "bridge", "bridge2",
-  "holes", "cliff", "ground")
-
-
 
 # Define simulation conditions
 conditions <- expand.grid(PC = c(1, 0.8, 0.6, 0.4, 0.2),

@@ -105,7 +105,7 @@ solve_Qvalues <- function(MDP_info, control, max_iter, gamma, tol, size,
   
   iter_used <- 0
 
-  # Solve for Q-values via repeated Bellman backups.
+  # Solve for Q-values:
   for (iter in 1:max_iter) {
     q_prev <- Q
     
@@ -117,7 +117,7 @@ solve_Qvalues <- function(MDP_info, control, max_iter, gamma, tol, size,
         next
       }
       arr <- q_prev[idx]
-      V_prime[s] <- Bellman(arr, control)
+      V_prime[s] <- Bellman(arr, control) # V_prime is the value function for every possible state given the policy
     }
     
     # Compute Q-values:
@@ -130,7 +130,7 @@ solve_Qvalues <- function(MDP_info, control, max_iter, gamma, tol, size,
     }
   }
   
-  list(Q = Q, iterations = iter_used)
+  return(list(Q = Q, iterations = iter_used))
 }
 
 solve_MDP <- function(MDP_info, control, terminal_states, start_state, max_iter, gamma, tol, size, init_Q = NULL, state_index = NULL) {
@@ -142,7 +142,7 @@ solve_MDP <- function(MDP_info, control, terminal_states, start_state, max_iter,
   q_out <- solve_Qvalues(MDP_info, control, max_iter, gamma, tol, size, state_index, init_Q)
   q_values <- q_out$Q
   
-  # Convert transition-level Q-values into state values.
+  # Identify max by state:
   V <- numeric(n_states)
   for (s in seq_len(n_states)) {
     idx <- state_index[[s]]
@@ -150,10 +150,10 @@ solve_MDP <- function(MDP_info, control, terminal_states, start_state, max_iter,
       next
     }
     arr <- q_values[idx]
-    V[s] <- Bellman(arr, control)
+    V[s] <- Bellman(arr, control) # Before this was max(arr$Q), but this leaves a "cross" around the reward
   }
-
-  # Greedy rollout from start_state until a terminal state is reached.
+  
+  # Compute policy 
   policy <- c(start_state)
   state <- start_state
   i = 1
@@ -161,25 +161,24 @@ solve_MDP <- function(MDP_info, control, terminal_states, start_state, max_iter,
   is_terminal[terminal_states] <- TRUE
   while (!is_terminal[state]) {
     
-    # Pick best next state according to learned Q-values.
+    # Compute optimal q(s, a):
     idx <- state_index[[state]]
     state <- MDP_info$S_prime[idx][which.max(q_values[idx])]
     
     # Append it to policy
     policy <- c(policy, state)
     
-    # Safety break against pathological loops.
+    # Make sure it doesn't get stuck: 
     i = i + 1
     if (i > 100 || is_terminal[state]) {
       break
     }
   }
-
-  list(policy   = policy, 
-       V_values = V, 
-       Q_values = q_values,
-       q_iterations = q_out$iterations)
   
+  return(list(policy   = policy, 
+              V_values = V, 
+              Q_values = q_values,
+              q_iterations = q_out$iterations))
 }
 
 # Mean Manhattan distance from the visited path to nearest punishment state.
@@ -206,7 +205,7 @@ determine_grid <- function(size,
                            plot) {
   size <- as.integer(size[1])
   grid_space <- as.character(grid_space[1])
-  valid_spaces <- c("cove", "cove2", "cove3", "bridge", "bridge2", "holes", "cliff", "ground")
+  valid_spaces <- c("cove", "cove2", "cove3", "abyss2", "bridge", "bridge2", "holes", "cliff", "ground")
 
   if (is.na(size) || size <= 10 || size >= 50) {
     stop("`size` must be an integer between 11 and 49.")
@@ -260,8 +259,13 @@ determine_grid <- function(size,
     # Scaled cove templates:
     # cove3: top+bottom+left+right borders + mid-right inward block
     # cove2: same as cove3, but without left and bottom border punishments
-    start <- idx(size - 1, center_col)
-    r_locs <- idx(3, center_col)
+    if (grid_space == "cove2") {
+      start <- idx(size, center_col)
+    } else {
+      start <- idx(size - 1, center_col)
+    }
+    goal_col <- min(size - 2, center_col + max(1, floor(size * 0.18)))
+    r_locs <- idx(3, goal_col)
 
     if (size == 11) {
       # Match the reference figure exactly for the 11x11 case.
@@ -276,6 +280,22 @@ determine_grid <- function(size,
       p_locs <- c(edge_top, edge_bottom, edge_left, edge_right, mid_right_block)
     } else {
       p_locs <- c(edge_top, edge_right, mid_right_block)
+    }
+  } else if (grid_space == "abyss2") {
+    # Preserve legacy abyss2 coordinates for the original 11x11 setup.
+    if (size == 11) {
+      start <- 66
+      r_locs <- 80
+      plus_legacy <- c(104:106, 93:95, 82:84, 71:73)
+      p_locs <- c(edge_right, edge_top, plus_legacy)
+    } else {
+      # Scaled fallback for other sizes.
+      start <- idx(size - 2, center_col)
+      r_locs <- idx(3, min(size - 2, center_col + max(1, floor(size * 0.15))))
+      abyss2_rows <- seq(max(2, floor(size * 0.25)), min(size - 1, ceiling(size * 0.7)))
+      abyss2_cols <- seq(max(2, ceiling(size * 0.55)), size - 1)
+      abyss2_block <- idx_rect(abyss2_rows, abyss2_cols)
+      p_locs <- c(edge_right, edge_top, abyss2_block)
     }
   } else if (grid_space == "ground") {
     p_locs <- integer(0)
@@ -307,7 +327,6 @@ determine_grid <- function(size,
     grid_plot[start] <- 2
     grid_matrix <- matrix(grid_plot, nrow = size, ncol = size)
 
-    pdf(paste0("Grid_", grid_space, "_size", size, ".pdf"), width = 4, height = 4)
     pheatmap::pheatmap(grid_matrix,
                        legend = FALSE,
                        cluster_col = FALSE,
@@ -317,8 +336,8 @@ determine_grid <- function(size,
                        breaks = c(-1.5, -0.5, 0.5, 1.5, 2.5),
                        na_col = "white",
                        width = 3,
-                       height = 3)
-    dev.off()
+                       height = 3,
+                       filename = paste0("Grid_", grid_space, "_size", size, ".pdf"))
 
   }
 
